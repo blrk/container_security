@@ -105,3 +105,111 @@ boot  docker-entrypoint.d  etc			 lib   media  opt  root  sbin  sys  usr
 * The PID namespace allows a process to have an isolated view of other processes running on the host. Containers use PID namespaces to ensure that they can only see and affect processes that are part of the contained application
 * Note: Multiple containers may also share the same PID namespace. 
 * This can be helpful for troubleshooting, as you can create a diagnostics container in the same namespace as an application container, and use it to run troubleshooting tools on the main application process.
+* Start a container using busybox image and run top in the background 
+```bash
+ docker run --name busybox1 -d busybox top
+```
+* Use docker inspect to get the pid
+```bash
+docker inspect -f '{{.State.Pid}}' busybox1
+
+2565
+```
+* Use nsenter to show the list of processes running inside a container.
+```bash
+sudo nsenter --target 2565 -m -p ps -ef
+
+PID   USER     TIME  COMMAND
+    1 root      0:00 top
+    8 root      0:00 ps -ef
+```
+* you can observe that top process is running
+* Another way to demonstrate the PID namespace is to use Linux’s unshare utility to run a program in a new set of namespaces
+```bash
+sudo unshare --pid --fork --mount-proc /bin/bash
+
+[root@container-sec ec2-user]# 
+```
+* This provide us with a bash shell in a new PID namespace
+* Run the ps -ef in the new bash shell
+```bash
+[root@container-sec ec2-user]# ps -ef
+UID          PID    PPID  C STIME TTY          TIME CMD
+root           1       0  0 10:41 pts/1    00:00:00 /bin/bash
+root          18       1  0 10:45 pts/1    00:00:00 ps -ef
+```
+* Run exit to come out of the shell
+```bash
+exit
+```
+* When running containers, it can also be helpful to use PID namespaces to see the processes running in another container
+* Note: The --pid switch on docker run allows us to start a container for debugging purposes in the process namespace of another container
+* To understand this, start a web server container
+```bash
+docker run -d --name webserver nginx
+```
+* Start a debugging container using --pid option
+```bash
+docker run -it --name debug --pid=container:webserver raesene/alpine-containertools /bin/bash
+```
+* Run the ps -ef command in the bash shell of the debug container
+```bash
+bash-5.1# ps -ef
+PID   USER     TIME  COMMAND
+    1 root      0:00 nginx: master process nginx -g daemon off;
+   29 101       0:00 nginx: worker process
+   30 101       0:00 nginx: worker process
+   31 root      0:00 /bin/bash
+   37 root      0:00 ps -ef
+```
+```bash
+exit
+```
+Note: Sharing the process namespace across containers is also possible in Kubernetes clusters, where it can be useful for debugging issues. If you want to share namespaces across a pod, it requires an option to be passed when the workload you want to debug is started. Specifically, you need to include shareProcessNamespace: true in your pod specification. More info https://kubernetes.io/docs/tasks/configure-pod-container/share-process-namespace/
+
+#### Network namespace
+* The net namespace is responsible for providing a process's network environment (interfaces, routing, etc.). 
+* It is very useful for ensuring that contained processes can bind the ports they need without interfering with each other, and for verifying that traffic can be directed to specific applications.
+* it’s possible to interact with the network namespace by using standard Linux tools like nsenter
+* Get the container PID
+```bash
+docker inspect -f '{{.State.Pid}}' webserver
+
+2758
+```
+* Use the -n switch on nsenter to enter the network namespace
+```bash
+sudo nsenter --target 2758 -n ip addr
+
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+6: eth0@if7: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 02:42:ac:11:00:03 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 172.17.0.3/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+```
+* Note: An important point here is that the ip command we’re running is being sourced from the host VM and doesn’t have to exist inside the container. This makes it a useful technique for troubleshooting networking issues in locked down containers that don’t have a lot of utilities installed in them.
+* Note: It is possible to use Docker to share network namespaces, similarly to getting containers to share the PID namespace. 
+* Launch a debugging container, with tools like tcpdump installed, and connect it to the network of the running container.
+``` bash
+docker run -it --name=debug-network --network=container:webserver raesene/alpine-containertools /bin/bash
+```
+* Run netstat -tunap to see listening ports, and it will show the web server running on port 80 from the other container
+```bash
+bash-5.1# netstat -tunap
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name    
+tcp        0      0 0.0.0.0:80              0.0.0.0:*               LISTEN      -
+tcp        0      0 :::80                   :::*                    LISTEN      -
+```
+* Note: In Kubernetes environments, network namespace sharing will typically be in place for all containers in a single pod. Although you cannot launch a debugging container in an existing pod, you can use the new ephemeral containers feature to dynamically add a container to the pod’s network namespace. https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/#ephemeral-container
+```bash
+kubectl run webserver --image=nginx
+kubectl debug -it --image raesene/alpine-containertools /bin/bash
+netstat -tunap
+kubectl debug -it --image raesene/alpine-containertools --target webserver /bin/bash
+```
+
+#### Cgroup namespace
