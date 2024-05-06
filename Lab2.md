@@ -213,3 +213,144 @@ kubectl debug -it --image raesene/alpine-containertools --target webserver /bin/
 ```
 
 #### Cgroup namespace
+* cgroups are designed to help control a process's resource usage on a Linux system. In containerization, they’re used to reduce the risk of “noisy neighbors” 
+* First we’ll start a container and look at the number of entries in /sys/fs/cgroup
+``` bash
+docker run ubuntu:22.04 ls -R /sys/fs/cgroup | wc -l
+
+Unable to find image 'ubuntu:22.04' locally
+22.04: Pulling from library/ubuntu
+a8b1c5f80c2d: Pull complete 
+Digest: sha256:a6d2b38300ce017add71440577d5b0a90460d0e57fd7aec21dd0d1b0761bbfb2
+Status: Downloaded newer image for ubuntu:22.04
+70
+```
+* Note: Traditionally, cgroups assigned to processes were not namespaced, so there was some risk that information about processes would leak from one container to another. This led to the introduction of the cgroup namespace, which gives containers their own isolated cgroups
+* But if we create another container that uses the host's cgroup namespace, we can see a lot more information available in that filesystem:
+
+```bash
+docker run --cgroupns=host ubuntu:22.04 ls -R /sys/fs/cgroup | wc -l
+
+3320
+```
+* Looking in the /sys/fs/cgroup/system.slice/ directory of a container with access to the host's cgroup namespace, we can see that it contains information about system services running on the host. This is an example of the type of information leakage that is mitigated by using an isolated cgroup namespace.
+```bash
+docker run --cgroupns=host ubuntu:22.04 ls /sys/fs/cgroup/system.slice/
+
+atd.service
+auditd.service
+boot-efi.mount
+cgroup.controllers
+cgroup.events
+cgroup.freeze
+cgroup.kill
+cgroup.max.depth
+cgroup.max.descendants
+cgroup.pressure
+cgroup.procs
+cgroup.stat
+cgroup.subtree_control
+cgroup.threads
+cgroup.type
+chronyd.service
+cloud-final.service
+cloud-init-local.service
+containerd.service
+cpu.idle
+cpu.max
+cpu.max.burst
+cpu.pressure
+cpu.stat
+cpu.weight
+cpu.weight.nice
+cpuset.cpus
+cpuset.cpus.effective
+cpuset.cpus.partition
+cpuset.mems
+cpuset.mems.effective
+dbus-broker.service
+docker-3530bf62ff56e8dec92102e39e1a9d11a9a0893a3b762fb5a92637757b92bb04.scope
+docker.service
+docker.socket
+gssproxy.service
+hugetlb.1GB.current
+hugetlb.1GB.events
+hugetlb.1GB.events.local
+hugetlb.1GB.max
+hugetlb.1GB.numa_stat
+hugetlb.1GB.rsvd.current
+hugetlb.1GB.rsvd.max
+hugetlb.2MB.current
+hugetlb.2MB.events
+hugetlb.2MB.events.local
+hugetlb.2MB.max
+hugetlb.2MB.numa_stat
+hugetlb.2MB.rsvd.current
+hugetlb.2MB.rsvd.max
+io.bfq.weight
+io.max
+io.pressure
+io.stat
+io.weight
+irqbalance.service
+libstoragemgmt.service
+memory.current
+memory.events
+memory.events.local
+memory.high
+memory.low
+memory.max
+memory.min
+memory.numa_stat
+memory.oom.group
+memory.peak
+memory.pressure
+memory.reclaim
+memory.stat
+memory.swap.current
+memory.swap.events
+memory.swap.high
+memory.swap.max
+memory.zswap.current
+memory.zswap.max
+misc.current
+misc.events
+misc.max
+pids.current
+pids.events
+pids.max
+pids.peak
+rngd.service
+sshd.service
+sysroot.mount
+system-getty.slice
+system-modprobe.slice
+system-serial\x2dgetty.slice
+system-sshd\x2dkeygen.slice
+system-systemd\x2dfsck.slice
+systemd-homed.service
+systemd-journald.service
+systemd-logind.service
+systemd-networkd.service
+systemd-resolved.service
+systemd-udevd.service
+systemd-userdbd.service
+tmp.mount
+var-lib-nfs-rpc_pipefs.mount
+```
+
+#### UTS namespace
+* Another less commonly used namespace with a relatively specific purpose: setting the hostname used by a process
+* Note: Linux container runtimes activate this namespace by default, which is why containers have different hostnames than their underlying VMs.
+```bash
+docker run -it ubuntu:22.04 /bin/bash
+
+root@1824bde1f41d:/# exit
+exit
+```
+* We can share the host’s UTS namespace using the --uts=host flag
+```bash
+[ec2-user@container-sec ~]$ docker run --uts=host -it ubuntu:22.04 /bin/bash
+root@container-sec:/# 
+```
+* Note: Linux namespaces are a foundational part of how container runtimes like Docker work. We've seen how they can provide fine-grained isolation of a container’s view of the host’s resources in a number of ways
