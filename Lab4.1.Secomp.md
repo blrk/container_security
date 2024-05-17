@@ -48,3 +48,14 @@ docker run -it --security-opt seccomp=no_uring.json ubuntu:22.04 /bin/bash
 docker: Error response from daemon: Decoding seccomp profile failed: json: cannot unmarshal string into Go struct field Seccomp.syscalls of type seccomp.Syscall.
 ERRO[0000] error waiting for container: context canceled 
 ```
+#### 
+* Download the custom secomp profile
+```bash
+wget  https://raw.githubusercontent.com/blrk/container_security/main/files/custom-seccomp.json
+```
+* The defaultAction is set to SCMP_ACT_ERRNO, which means that any system call not explicitly allowed will result in an error.
+* The syscalls section specifies the system calls that are allowed (SCMP_ACT_ALLOW). This example allows chdir, fchown, fchownat, setuid, setgid, clone, fork, and vfork.
+* Apply the Custom Seccomp Profile to a Docker Container
+```bash
+
+```
