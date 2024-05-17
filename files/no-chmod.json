@@ -7,13 +7,19 @@
         "SCMP_ARCH_X86",
         "SCMP_ARCH_X32"
       ]
-    } 
+    }
   ],
   "syscalls": [
     {
-      "names": [
-        "chmod"
-      ],
+      "names": ["chmod"],
+      "action": "SCMP_ACT_ERRNO"
+    },
+    {
+      "names": ["fchmod"],
+      "action": "SCMP_ACT_ERRNO"
+    },
+    {
+      "names": ["fchmodat"],
       "action": "SCMP_ACT_ERRNO"
     }
   ]
