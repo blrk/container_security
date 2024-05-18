@@ -23,39 +23,23 @@ root@b1bbb0cadbb1:/# unshare
 * Run exit twice to come out of the container
 #### Creating custom seccomp filters
 * Although the Docker default seccomp profile provides a good level of isolation, there are some scenarios that call for different degrees of restrictions
+* Get the secomp profile that blocks the chmod system calls
 ```bash
-vi no_uring.json
+wget https://raw.githubusercontent.com/blrk/container_security/main/files/no-chmod.json
 ```
-```json
-{
-  "defaultAction": "SCMP_ACT_ERRNO",
-  "architectures": [
-    "SCMP_ARCH_X86_64",
-    "SCMP_ARCH_X86",
-    "SCMP_ARCH_X32"
-  ],
-  "syscalls": [
-    "io_uring_enter",
-    "io_uring_register",
-    "io_uring_setup"
-  ]
-}
-```
-* using th
+* Start a container using this profile
 ```bash
-docker run -it --security-opt seccomp=no_uring.json ubuntu:22.04 /bin/bash
+docker run -it --security-opt seccomp=no-chmod.json ubuntu:22.04 /bin/bash
 
-docker: Error response from daemon: Decoding seccomp profile failed: json: cannot unmarshal string into Go struct field Seccomp.syscalls of type seccomp.Syscall.
-ERRO[0000] error waiting for container: context canceled 
+root@d7980f8b9027:/# chmod 744 /etc/passwd
+chmod: changing permissions of '/etc/passwd': Operation not permitted
 ```
-#### 
-* Download the custom secomp profile
+* exit from the container
+* Track all the systemcalls from a container using strace
 ```bash
-wget  https://raw.githubusercontent.com/blrk/container_security/main/files/custom-seccomp.json
+strace -fvttTyy -s 256 -o strace.txt docker run -it ubuntu:22.04 ls / >/dev/null
 ```
-* The defaultAction is set to SCMP_ACT_ERRNO, which means that any system call not explicitly allowed will result in an error.
-* The syscalls section specifies the system calls that are allowed (SCMP_ACT_ALLOW). This example allows chdir, fchown, fchownat, setuid, setgid, clone, fork, and vfork.
-* Apply the Custom Seccomp Profile to a Docker Container
+* View the logs
 ```bash
-
+cat  strace.txt | cut -f 4 -d " " | less
 ```
