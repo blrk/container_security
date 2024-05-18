@@ -35,6 +35,7 @@ root@d7980f8b9027:/# chmod 744 /etc/passwd
 chmod: changing permissions of '/etc/passwd': Operation not permitted
 ```
 * exit from the container
+#### Tracking systemcalls from a container
 * Track all the systemcalls from a container using strace
 ```bash
 strace -fvttTyy -s 256 -o strace.txt docker run -it ubuntu:22.04 ls / >/dev/null
@@ -43,3 +44,5 @@ strace -fvttTyy -s 256 -o strace.txt docker run -it ubuntu:22.04 ls / >/dev/null
 ```bash
 cat  strace.txt | cut -f 4 -d " " | less
 ```
+* Another option for generating custom seccomp profiles is to audit the syscalls your applications generate and then use this audit log to create a custom profile that allows only those syscalls.
+* https://www.inspektor-gadget.io/docs/v0.28.1/
