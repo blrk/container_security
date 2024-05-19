@@ -251,7 +251,7 @@ IMAGE          CREATED          CREATED BY                                      
 ```
 * find the secret from the specific layer
 ```bash
-cat  blobs/sha256/776db58f30204892fa9ef4ccda958e335a054bd42235f404a81bb5c3a4a1f20f | grep secret | jq '.history'
+cat  blobs/sha256/776db58f30204892fa9ef4ccda958e335a054bd42235f404a81bb5c3a4a1f20f |  jq '.history'
 
 [
   {
@@ -359,4 +359,4 @@ cat  blobs/sha256/776db58f30204892fa9ef4ccda958e335a054bd42235f404a81bb5c3a4a1f2
 ]
 ```
 * Note: Anyone who has access to the container image can access any file included in that. From a security prespective storing of sensitive info or token must be avoided in an image. Inside each each imaeg layer's directory there ia another tar file holding the contents of the filesystem at that layer.
- 
+
