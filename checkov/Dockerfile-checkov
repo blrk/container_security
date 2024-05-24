@@ -1,0 +1,2 @@
+FROM ubuntu:22.04
+RUN apt update -y && apt-get install python3 -y && apt install python3-pip -y && pip3 install checkov  && apt install wget -y
